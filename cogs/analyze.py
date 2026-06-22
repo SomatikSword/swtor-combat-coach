@@ -6,7 +6,7 @@ from discord.ext import commands
 from parser.log_reader import read_log
 from parser.encounter_parser import split_encounters
 from parser.player_parser import parse_players
-from utils.file_handler import extract_log_file
+from utils.file_handler import prepare_uploaded_log, cleanup_old_uploads
 
 from analyzers.dps import calculate_dps
 from analyzers.healing import calculate_ehps
@@ -233,26 +233,22 @@ class Analyze(commands.Cog):
             self.player_ehps_data = {}
             self.player_tank_data = {}
 
-            os.makedirs("data", exist_ok=True)
+            cleanup_old_uploads(max_age_hours=24)
 
             attachment = ctx.message.attachments[0]
 
-            save_path = os.path.join(
-                "data",
-                attachment.filename
-            )
-
-            await attachment.save(save_path)
-
-            log_path = extract_log_file(save_path)
-
-            if not log_path:
-                await ctx.send("Не удалось найти TXT лог.")
-                return
+            log_path, upload_dir, debug_info = await prepare_uploaded_log(attachment)
 
             lines = read_log(log_path)
             encounters = split_encounters(lines)
             players_data = parse_players(lines)
+
+            await ctx.send(
+                "📥 Лог загружен\n"
+                f"📦 Файл Discord: `{debug_info['uploaded_file']}`\n"
+                f"📄 Читаю лог: `{debug_info['log_file']}`\n"
+                f"📊 Строк в логе: `{len(lines)}`"
+            )
 
             self.last_encounters = encounters
             self.players_data = players_data
@@ -347,19 +343,20 @@ class Analyze(commands.Cog):
                 )
 
             report = (
-                f"Операция: {operation_name}\n"
-                f"Сложность: {difficulty}\n\n"
-                f"Найдено боёв: {len(encounters)}\n\n"
-                f"**Боссы:**\n"
-                + ("\n".join(bosses) if bosses else "Не найдены")
-                + "\n\n"
-                f"**Игроки:**\n"
-                + (player_list if player_list else "Игроки не найдены")
-                + "\n"
-                f"Файл сохранён: {attachment.filename}\n"
-                f"Строк в логе: {len(lines)}\n\n"
-                f"Данные готовы для команд:\n"
-                f"`!player`, `!healer`, `!tank`, `!raid`, `!top`, `!compare`, `!coach`"
+                    f"Операция: {operation_name}\n"
+                    f"Сложность: {difficulty}\n\n"
+                    f"Найдено боёв: {len(encounters)}\n\n"
+                    f"**Боссы:**\n"
+                    + ("\n".join(bosses) if bosses else "Не найдены")
+                    + "\n\n"
+                      f"**Игроки:**\n"
+                    + (player_list if player_list else "Игроки не найдены")
+                    + "\n"
+                      f"Файл сохранён: {debug_info['uploaded_file']}\n"
+                      f"Файл анализа: {debug_info['log_file']}\n"
+                      f"Строк в логе: {len(lines)}\n\n"
+                      f"Данные готовы для команд:\n"
+                      f"`!player`, `!healer`, `!tank`, `!raid`, `!top`, `!compare`, `!coach`"
             )
 
             await self.send_long_message(ctx, report)
