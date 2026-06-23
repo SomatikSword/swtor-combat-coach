@@ -24,6 +24,39 @@ class CombinedEncounter:
         self.boss_name = boss_name
         self.lines = lines
 
+        self.start_time = self.get_line_time(lines[0]) if lines else 0
+        self.end_time = self.get_line_time(lines[-1]) if lines else 0
+
+        if self.end_time < self.start_time:
+            self.end_time += 24 * 60 * 60
+
+        self.duration = max(
+            1,
+            self.end_time - self.start_time
+        )
+
+    def get_line_time(self, line):
+        """
+        Достаёт время из строки SWTOR-лога.
+
+        Пример:
+        [23:58:50.021] [...]
+        """
+        try:
+            time_text = line.split("]", 1)[0].replace("[", "").strip()
+
+            hour, minute, second = time_text.split(":")
+            second = float(second)
+
+            return (
+                int(hour) * 3600
+                + int(minute) * 60
+                + second
+            )
+
+        except Exception:
+            return 0
+
 class Analyze(commands.Cog):
 
     def __init__(self, bot):
