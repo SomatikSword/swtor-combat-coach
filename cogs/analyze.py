@@ -369,8 +369,6 @@ class Analyze(commands.Cog):
 
             operation_name = detect_operation(bosses)
 
-            operation_name = detect_operation(bosses)
-
             player_list = ""
 
             for name, info in players_data.items():
@@ -1067,7 +1065,7 @@ class Analyze(commands.Cog):
                 )
 
                 if discipline_result:
-                    response += discipline_resultищыыуы =
+                    response += discipline_result
 
                 response += f"\nPerformance Score: {score}/100\n"
 
