@@ -16,7 +16,13 @@ from analyzers.tank import analyze_tank_encounter
 from services.operation_detector import detect_operation
 from services.difficulty_detector import detect_difficulty
 from services.role_detector import detect_role
+from services.boss_detector import detect_boss_encounter
+from discipline_analyzers.registry import analyze_discipline_specific
 
+class CombinedEncounter:
+    def __init__(self, boss_name, lines):
+        self.boss_name = boss_name
+        self.lines = lines
 
 class Analyze(commands.Cog):
 
@@ -261,23 +267,57 @@ class Analyze(commands.Cog):
                 )
                 break
 
-            bosses = []
+            difficulty = None
 
             for encounter in encounters:
-                boss_name = self.get_boss_name(encounter)
+                difficulty = detect_difficulty(
+                    self.get_lines(encounter)
+                )
+                break
 
-                if not boss_name:
-                    continue
+            boss_lines_by_name = {}
+            boss_detection_debug = {}
 
-                clean_name = boss_name.strip()
-
-                if clean_name not in bosses:
-                    bosses.append(clean_name)
-
+            for encounter in encounters:
                 encounter_lines = self.get_lines(encounter)
 
+                detection = detect_boss_encounter(encounter_lines)
+
+                if not detection["is_boss_fight"]:
+                    continue
+
+                boss_name = detection["boss_name"]
+
+                boss_lines_by_name.setdefault(
+                    boss_name,
+                    []
+                )
+
+                boss_lines_by_name[boss_name].extend(encounter_lines)
+
+                boss_detection_debug.setdefault(
+                    boss_name,
+                    set()
+                )
+
+                boss_detection_debug[boss_name].add(
+                    detection["matched_name"]
+                )
+
+            bosses = list(boss_lines_by_name.keys())
+
+            combined_encounters = []
+
+            for boss_name, boss_lines in boss_lines_by_name.items():
+                combined_encounter = CombinedEncounter(
+                    boss_name=boss_name,
+                    lines=boss_lines
+                )
+
+                combined_encounters.append(combined_encounter)
+
                 # DPS
-                dps_data = calculate_dps(encounter_lines)
+                dps_data = calculate_dps(boss_lines)
 
                 for player_name, dps in dps_data.items():
                     self.player_dps_data.setdefault(
@@ -285,10 +325,10 @@ class Analyze(commands.Cog):
                         {}
                     )
 
-                    self.player_dps_data[player_name][clean_name] = dps
+                    self.player_dps_data[player_name][boss_name] = dps
 
                 # HEAL / EHPS
-                ehps_data = calculate_ehps(encounter)
+                ehps_data = calculate_ehps(combined_encounter)
 
                 for player_name, heal in ehps_data.items():
                     self.player_ehps_data.setdefault(
@@ -296,7 +336,7 @@ class Analyze(commands.Cog):
                         {}
                     )
 
-                    self.player_ehps_data[player_name][clean_name] = heal
+                    self.player_ehps_data[player_name][boss_name] = heal
 
                 # TANK
                 for player_name, player_info in players_data.items():
@@ -309,7 +349,7 @@ class Analyze(commands.Cog):
                         continue
 
                     tank_data = analyze_tank_encounter(
-                        encounter,
+                        combined_encounter,
                         player_name,
                         player_info["class"],
                         player_info["discipline"]
@@ -323,7 +363,11 @@ class Analyze(commands.Cog):
                         {}
                     )
 
-                    self.player_tank_data[player_name][clean_name] = tank_data
+                    self.player_tank_data[player_name][boss_name] = tank_data
+
+            self.last_encounters = combined_encounters
+
+            operation_name = detect_operation(bosses)
 
             operation_name = detect_operation(bosses)
 
@@ -531,10 +575,11 @@ class Analyze(commands.Cog):
             await ctx.send("Ошибка в tank. Проверь терминал.")
 
     # ---------------------------------------------------
-    # !raid
+    # ---------------------------------------------------
+    # !raid [босс]
     # ---------------------------------------------------
     @commands.command()
-    async def raid(self, ctx):
+    async def raid(self, ctx, *, boss_query: str = None):
 
         if not self.player_dps_data:
             await ctx.send("Сначала используй !analyze.")
@@ -554,21 +599,83 @@ class Analyze(commands.Cog):
                     []
                 )
 
-                boss_dps_values[boss_name].append(dps)
+                boss_dps_values[boss_name].append(
+                    {
+                        "player": player_name,
+                        "dps": dps,
+                    }
+                )
 
         if not boss_dps_values:
             await ctx.send("Нет DPS-данных для рейда.")
+            return
+
+        if boss_query:
+            matches = self.find_boss_matches(boss_query)
+
+            if not matches:
+                available_bosses = "\n".join(
+                    self.get_all_boss_names_from_dps()
+                )
+
+                await ctx.send(
+                    "Босс не найден.\n\n"
+                    "**Доступные боссы:**\n"
+                    f"{available_bosses}"
+                )
+                return
+
+            if len(matches) > 1:
+                await ctx.send(
+                    "Нашлось несколько боссов. Уточни название:\n\n"
+                    + "\n".join(matches)
+                )
+                return
+
+            boss_name = matches[0]
+
+            if boss_name not in boss_dps_values:
+                await ctx.send("По этому боссу нет DPS-данных.")
+                return
+
+            values = boss_dps_values[boss_name]
+            avg_dps = sum(item["dps"] for item in values) / len(values)
+            total_dps = sum(item["dps"] for item in values)
+
+            values.sort(
+                key=lambda item: item["dps"],
+                reverse=True
+            )
+
+            response = (
+                f"**Raid DPS: {boss_name}**\n"
+                f"_Учитываются только DPS-роли._\n\n"
+                f"Средний DPS: {self.format_number(avg_dps)}\n"
+                f"Суммарный DPS: {self.format_number(total_dps)}\n"
+                f"Игроков учтено: {len(values)}\n\n"
+                f"**Игроки:**\n"
+            )
+
+            for item in values:
+                response += (
+                    f"• {item['player']}: "
+                    f"{self.format_number(item['dps'])}\n"
+                )
+
+            await self.send_long_message(ctx, response)
             return
 
         response = "**Средний DPS рейда по боссам**\n"
         response += "_Учитываются только DPS-роли._\n\n"
 
         for boss_name, values in boss_dps_values.items():
-            avg_dps = sum(values) / len(values)
+            avg_dps = sum(item["dps"] for item in values) / len(values)
+            total_dps = sum(item["dps"] for item in values)
 
             response += (
                 f"**{boss_name}**\n"
                 f"Средний DPS: {self.format_number(avg_dps)}\n"
+                f"Суммарный DPS: {self.format_number(total_dps)}\n"
                 f"Игроков учтено: {len(values)}\n\n"
             )
 
@@ -951,6 +1058,16 @@ class Analyze(commands.Cog):
                 )
 
                 response += rotation_result
+
+                discipline_result = analyze_discipline_specific(
+                    player_name,
+                    encounter_lines,
+                    player_class,
+                    discipline
+                )
+
+                if discipline_result:
+                    response += discipline_resultищыыуы =
 
                 response += f"\nPerformance Score: {score}/100\n"
 

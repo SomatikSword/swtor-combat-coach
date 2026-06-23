@@ -1,112 +1,38 @@
-OPERATIONS = {
-
-    "Eternity Vault": [
-        "Annihilation Droid XRR-3",
-        "Gharj",
-        "Soa",
-        "Rakata Eternal Guardian",
-        "Perimeter Defense Cannon"
-    ],
-
-    "Explosive Conflict": [
-        "Zorn",
-        "Toth",
-        "Firebrand",
-        "Stormcaller",
-        "Colonel Vorgath",
-        "Warlord Kephess"
-    ],
-
-    "Explosive Conflict": [
-        "Zorn",
-        "Toth",
-        "Firebrand",
-        "Stormcaller",
-        "Colonel Vorgath",
-        "Warlord Kephess"
-    ],
-
-    "Terror From Beyond": [
-        "The Writhing Horror",
-        "Dread Guard",
-        "Operator IX",
-        "Kephess the Undying",
-        "Terror From Beyond"
-    ],
-
-    "Scum & Villainy": [
-        "Dash'roode",
-        "Titan 6",
-        "Thrasher",
-        "Operations Chief",
-        "Olok the Shadow",
-        "Cartel Warlords",
-        "Styrak"
-    ],
-
-    "Dread Fortress": [
-        "Nefra",
-        "Draxus",
-        "Grob'thok",
-        "Corruptor Zero",
-        "Brontes"
-    ],
-
-    "Dread Palace": [
-        "Bestia",
-        "Tyrans",
-        "Calphayus",
-        "Raptus",
-        "Council"
-    ],
-
-    "The Ravagers": [
-        "Sparky",
-        "Quartermaster Bulo",
-        "Torque",
-        "Blaster",
-        "Master",
-        "Coratanni"
-    ],
-
-    "Temple of Sacrifice": [
-        "Malaphar",
-        "Sword Squadron",
-        "Underlurker",
-        "Revanite Commanders",
-        "Revan"
-    ],
-
-    "Gods from the Machine": [
-        "Tyth",
-        "Aivela",
-        "Esne",
-        "Nahut",
-        "Scyva",
-        "Izax"
-    ],
-
-    "Nature of Progress": [
-        "Red",
-        "Breach CI-004",
-        "Trandoshan Squad",
-        "The Huntmaster",
-        "Apex Vanguard"
-    ],
-}
+from services.boss_catalog import normalize_name, iter_catalog_entries
 
 
-def detect_operation(boss_list):
+def detect_operation(bosses):
+    """
+    Определяет операцию по списку канонических боссов.
 
-    for operation_name, operation_bosses in OPERATIONS.items():
+    Теперь сюда должны попадать не адды, а нормальные имена:
+    Tyth, Scyva, Izax, Bonethrasher и т.д.
+    """
 
-        matches = sum(
-            1
-            for boss in boss_list
-            if any(boss.startswith(op_boss) for op_boss in operation_bosses)
-        )
+    if not bosses:
+        return "Не удалось определить"
 
-        if matches >= 2:
-            return operation_name
+    scores = {}
 
-    return "Не удалось определить"
+    for boss in bosses:
+        normalized_boss = normalize_name(boss)
+
+        for operation_name, catalog_boss_name, data in iter_catalog_entries():
+            names = [catalog_boss_name]
+            names.extend(data.get("boss_aliases", []))
+            names.extend(data.get("encounter_aliases", []))
+
+            for name in names:
+                normalized_name = normalize_name(name)
+
+                if not normalized_name:
+                    continue
+
+                if normalized_boss == normalized_name:
+                    scores[operation_name] = scores.get(operation_name, 0) + 1
+                    break
+
+    if not scores:
+        return "Не удалось определить"
+
+    return max(scores, key=scores.get)
