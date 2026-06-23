@@ -24,27 +24,45 @@ class CombinedEncounter:
         self.boss_name = boss_name
         self.lines = lines
 
-        self.start_time = self.get_line_time(lines[0]) if lines else 0
-        self.end_time = self.get_line_time(lines[-1]) if lines else 0
+        self.start_time = self.get_line_time_text(lines[0]) if lines else "00:00:00.000"
+        self.end_time = self.get_line_time_text(lines[-1]) if lines else "00:00:00.000"
 
-        if self.end_time < self.start_time:
-            self.end_time += 24 * 60 * 60
+        self.start_seconds = self.time_text_to_seconds(self.start_time)
+        self.end_seconds = self.time_text_to_seconds(self.end_time)
+
+        if self.end_seconds < self.start_seconds:
+            self.end_seconds += 24 * 60 * 60
 
         self.duration = max(
             1,
-            self.end_time - self.start_time
+            self.end_seconds - self.start_seconds
         )
 
-    def get_line_time(self, line):
+        self.duration_seconds = self.duration
+        self.fight_duration = self.duration
+
+    def get_line_time_text(self, line):
         """
-        Достаёт время из строки SWTOR-лога.
+        Достаёт время из строки SWTOR-лога как текст.
 
         Пример:
         [23:58:50.021] [...]
+        вернёт:
+        23:58:50.021
         """
         try:
-            time_text = line.split("]", 1)[0].replace("[", "").strip()
+            return line.split("]", 1)[0].replace("[", "").strip()
+        except Exception:
+            return "00:00:00.000"
 
+    def time_text_to_seconds(self, time_text):
+        """
+        Превращает текстовое время в секунды.
+
+        Пример:
+        23:58:50.021 -> 86330.021
+        """
+        try:
             hour, minute, second = time_text.split(":")
             second = float(second)
 
