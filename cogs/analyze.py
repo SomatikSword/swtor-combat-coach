@@ -327,6 +327,8 @@ class Analyze(commands.Cog):
                 break
 
             boss_lines_by_name = {}
+            boss_operation_by_name = {}
+            operation_bosses = {}
             boss_detection_debug = {}
 
             for encounter in encounters:
@@ -338,6 +340,7 @@ class Analyze(commands.Cog):
                     continue
 
                 boss_name = detection["boss_name"]
+                operation = detection["operation"]
 
                 boss_lines_by_name.setdefault(
                     boss_name,
@@ -345,6 +348,16 @@ class Analyze(commands.Cog):
                 )
 
                 boss_lines_by_name[boss_name].extend(encounter_lines)
+
+                boss_operation_by_name[boss_name] = operation
+
+                operation_bosses.setdefault(
+                    operation,
+                    []
+                )
+
+                if boss_name not in operation_bosses[operation]:
+                    operation_bosses[operation].append(boss_name)
 
                 boss_detection_debug.setdefault(
                     boss_name,
@@ -418,7 +431,25 @@ class Analyze(commands.Cog):
 
             self.last_encounters = combined_encounters
 
-            operation_name = detect_operation(bosses)
+            if not operation_bosses:
+                operation_text = "Не удалось определить"
+            elif len(operation_bosses) == 1:
+                operation_text = next(iter(operation_bosses.keys()))
+            else:
+                operation_text = "Несколько операций"
+
+            operation_bosses_text = ""
+
+            if operation_bosses:
+                for operation, operation_boss_list in operation_bosses.items():
+                    operation_bosses_text += f"**{operation}:**\n"
+
+                    for boss_name in operation_boss_list:
+                        operation_bosses_text += f"• {boss_name}\n"
+
+                    operation_bosses_text += "\n"
+            else:
+                operation_bosses_text = "Не найдены\n"
 
             player_list = ""
 
@@ -436,11 +467,12 @@ class Analyze(commands.Cog):
                 )
 
             report = (
-                    f"Операция: {operation_name}\n"
+                    f"Операция: {operation_text}\n"
                     f"Сложность: {difficulty}\n\n"
-                    f"Найдено боёв: {len(encounters)}\n\n"
-                    f"**Боссы:**\n"
-                    + ("\n".join(bosses) if bosses else "Не найдены")
+                    f"Найдено сырых боёв: {len(encounters)}\n"
+                    f"Найдено боссов: {len(bosses)}\n\n"
+                    f"**Операции и боссы:**\n"
+                    + operation_bosses_text
                     + "\n\n"
                       f"**Игроки:**\n"
                     + (player_list if player_list else "Игроки не найдены")

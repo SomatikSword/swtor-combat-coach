@@ -410,12 +410,12 @@ BOSS_CATALOG = {
     },
 
     "Nature of Progress": {
-        "Red": {
-            "boss_aliases": [
-                "red",
-            ],
-            "encounter_aliases": [],
-        },
+    # "Red": {
+    #     "boss_aliases": [
+    #         "red",
+    #     ],
+    #     "encounter_aliases": [],
+    # },
         "Breach CI-004": {
             "boss_aliases": [
                 "breach ci 004",
