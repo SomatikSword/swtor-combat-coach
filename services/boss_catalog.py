@@ -410,12 +410,6 @@ BOSS_CATALOG = {
     },
 
     "Nature of Progress": {
-    # "Red": {
-    #     "boss_aliases": [
-    #         "red",
-    #     ],
-    #     "encounter_aliases": [],
-    # },
         "Breach CI-004": {
             "boss_aliases": [
                 "breach ci 004",
@@ -474,8 +468,32 @@ BOSS_CATALOG = {
             "encounter_aliases": [],
         },
     },
-}
 
+    "Relentless Replication": {
+        "Complete Construct": {
+            "boss_aliases": [
+                "complete construct",
+            ],
+            "encounter_aliases": [],
+        },
+        "Propagator Core XR-53": {
+            "boss_aliases": [
+                "propagator core xr 53",
+                "propagator core xr-53",
+                "xr 53",
+                "xr-53",
+            ],
+            "encounter_aliases": [
+                "imperfect construct",
+                "rampaging construct",
+                "supplicant construct",
+                "prey seeker droid",
+                "mistaken construct",
+                "powerful construct",
+            ],
+        },
+    },
+}
 
 TRASH_NAMES = {
     "sniper",
